@@ -1,4 +1,4 @@
-;;; zyutils-management.el --- Configuration management -*- lexical-binding: t -*-
+;;; zyutils-mngt.el --- Configuration management -*- lexical-binding: t -*-
 
 
 ;; This file is not part of GNU Emacs
@@ -30,7 +30,7 @@
 ;; Recompile the config
 
 ;;;###autoload
-(defun zyutils-recompile-config (&optional force)
+(defun zyutils-mngt-recompile-config (&optional force)
   "Recompile the ZyEmacs config.
 
 If optional argument FORCE is non-nil, or with prefix argument
@@ -84,7 +84,7 @@ file."
 ;; Launch a new instance of Emacs
 
 ;;;###autoload
-(defun zyutils-test-config (&optional recompile)
+(defun zyutils-mngt-test-config (&optional recompile)
   "Test the updated config.
 
 Start a new instance of Emacs with \"--debug-init\" argument to
@@ -96,11 +96,11 @@ instance."
   (interactive "P")
   (save-some-buffers)
   (when recompile
-    (zyutils-recompile-config))
+    (zyutils-mngt-recompile-config))
   (eval-and-compile (require 'restart-emacs))
   (restart-emacs-start-new-emacs '("--debug-init")))
 
 
-(provide 'zyutils-management)
+(provide 'zyutils-mngt)
 
-;;; zyutils-management.el ends here
+;;; zyutils-mngt.el ends here
