@@ -1,3 +1,7 @@
+# Autoloads
+*-autoloads.el
+*-loaddefs.el
+
 # Compiled
 *.elc
 
