@@ -101,6 +101,61 @@ instance."
   (restart-emacs-start-new-emacs '("--debug-init")))
 
 
+;; Dedicated mode for displaying benchmark result
+
+(unless (boundp 'zy/bench-timetable)
+  (defvar zy/bench-timetable nil))
+
+(define-derived-mode zyutils-mngt-benchmark-result-mode
+  tabulated-list-mode "Benchmark Result"
+  "Show times taken to load each features."
+  (setq tabulated-list-format
+	[("Start time (ms)" 20 zyutils-mngt--sort-by-since)
+	 ("Feature" 30 t)
+	 ("Time (ms)" 20 zyutils-mngt--sort-by-taken)])
+  (setq tabulated-list-entries #'zyutils-mngt-benchmark-list-entries)
+  (tabulated-list-init-header))
+
+(defun zyutils-mngt-get-time-string (time)
+  "Get TIME in string format.
+
+TIME will first be converted to float format, then converted to
+milliseconds, and then formated to a string."
+  (format "%.2f" (* 1000 (float-time time))))
+
+(defun zyutils-mngt-benchmark-list-entries ()
+  "Get list entries for `zyutils-mngt-mode'."
+  (cl-loop for (since feature taken) in zy/bench-timetable
+	   with order = 0
+	   do (cl-incf order)
+	   collect (list order
+			 (vector (zyutils-mngt-get-time-string since)
+				 (symbol-name feature)
+				 (zyutils-mngt-get-time-string taken)))))
+
+(defun zyutils-mngt--sort-by-since (entry1 entry2)
+  "Return t if ENTRY1 has a greater SINCE value than ENTRY2."
+  (< (string-to-number (elt (nth 1 entry1) 0))
+     (string-to-number (elt (nth 1 entry2) 0))))
+
+(defun zyutils-mngt--sort-by-taken (entry1 entry2)
+  "Return t if ENTRY1 has a greater TAKEN value than ENTRY2."
+  (< (string-to-number (elt (nth 1 entry1) 2))
+     (string-to-number (elt (nth 1 entry2) 2))))
+
+
+;; Command to show benchmark result
+
+;;;###autoload
+(defun zyutils-mngt-show-benchmark-result ()
+  "Show a tabular view of startup benchmark result."
+  (interactive)
+  (with-current-buffer (get-buffer-create "*Benchmark Result*")
+    (zyutils-mngt-benchmark-result-mode)
+    (tabulated-list-revert)
+    (display-buffer (current-buffer))))
+
+
 (provide 'zyutils-mngt)
 
 ;;; zyutils-mngt.el ends here
