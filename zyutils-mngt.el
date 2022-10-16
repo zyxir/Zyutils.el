@@ -24,7 +24,82 @@
 
 ;;; Code:
 
-(require 'restart-emacs)
+
+;; Loaddef collector
+
+;;;###autoload
+(defun zyutils-mngt-collect-loaddefs (file)
+  "Collect all and load path and loaddefs into a single file FILE."
+  (message "Generating single big loaddefs file.")
+  ;; Populate `load-path' with borg
+  (add-to-list 'load-path (expand-file-name "lib/borg" user-emacs-directory))
+  (eval-and-compile (require 'borg))
+  (borg-initialize)
+  ;; Delete FILE if it already exists
+  (when (file-exists-p file)
+    (delete-file file))
+  ;; Generate the single loaddefs file
+  (condition-case-unless-debug e
+      (with-temp-file file
+	(setq-local coding-system-for-write 'utf-8)
+	(let ((standard-output (current-buffer))
+	      (print-quoted t)
+	      (print-level nil)
+	      (print-length nil)
+	      (home (expand-file-name "~"))
+	      the-load-path
+	      drones-path
+	      autoloads-file
+	      loaddefs-file)
+	  (insert ";; -*- lexical-binding: t; coding: utf-8; no-native-compile: t -*-\n"
+                  ";; This file is generated from enabled drones.\n")
+	  ;; Collect drones' path and full `load-path'
+	  (dolist (path load-path)
+	    (when (string-prefix-p (expand-file-name user-emacs-directory)
+				   (expand-file-name path))
+	      (push path drones-path))
+	    (if (string-prefix-p home path)
+		(push (concat "~" (string-remove-prefix home path)) the-load-path)
+	      (push path the-load-path)))
+	  (push (expand-file-name "lisp" user-emacs-directory) the-load-path)
+	  (setq the-load-path (delete-dups the-load-path))
+	  (setq the-load-path (cl-remove-if #'(lambda (path)
+						(or
+						 (file-equal-p path user-emacs-directory)
+						 (not (file-exists-p path))))
+					    the-load-path))
+	  (prin1 `(set `load-path ',(nreverse the-load-path)))
+	  (insert "\n")
+	  ;; Insert all clone's autoloads.el and loaddefs.el to this file
+	  (dolist (path drones-path)
+	    (when (file-exists-p path)
+	      (setq autoloads-file (car (directory-files path 'full ".*-autoloads.el\\'"))
+		    loaddefs-file (car (directory-files path 'full ".*-loaddefs.el\\'")))
+	      (when (and autoloads-file
+			 (file-exists-p autoloads-file))
+		(insert-file-contents autoloads-file))
+	      (when (and loaddefs-file
+			 (file-exists-p loaddefs-file))
+		(insert-file-contents loaddefs-file))))
+	  ;; Remove all #$ load cache
+	  (goto-char (point-min))
+	  (while (re-search-forward "\(add-to-list 'load-path.*#$.*\n" nil t)
+	    (replace-match ""))
+	  (goto-char (point-min))
+	  (while (re-search-forward "\(add-to-list 'load-path.*\n.*#$.*\n" nil t)
+	    (replace-match ""))
+	  ;; Write local variables region
+	  (goto-char (point-max))
+	  (insert "\n"
+		  "\n(provide 'init-loaddefs)"
+                  "\n;; Local Variables:"
+                  "\n;; version-control: never"
+                  "\n;; no-update-autoloads: t"
+                  "\n;; End:"
+		  ))
+	t)
+    (error (delete-file file)
+	   (signal 'zy/collect-loaddefs-error (list file e)))))
 
 
 ;; Recompile the config
@@ -94,11 +169,14 @@ If RECOMPILE is non-nil, or with prefix argument when called
 interactively, recompile the whole config before starting the new
 instance."
   (interactive "P")
-  (save-some-buffers)
-  (when recompile
-    (zyutils-mngt-recompile-config))
-  (eval-and-compile (require 'restart-emacs))
-  (restart-emacs-start-new-emacs '("--debug-init")))
+  (if (require 'restart-emacs nil 'noerror)
+      (progn
+	(save-some-buffers)
+	(when recompile
+	  (zyutils-mngt-recompile-config))
+	(eval-and-compile (require 'restart-emacs))
+	(restart-emacs-start-new-emacs '("--debug-init")))
+    (error "You have to install Restart-emacs to use this command!")))
 
 
 ;; Dedicated mode for displaying benchmark result
