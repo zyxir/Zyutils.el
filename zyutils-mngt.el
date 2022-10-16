@@ -50,7 +50,7 @@ file."
 			  (directory-files
 			   (file-name-as-directory
 			    (expand-file-name dir user-emacs-directory))
-			   nil ".*\\.el\\'" 'nosort))
+			   'full ".*\\.el\\'" 'nosort))
 		      '("lisp")))
 	 (files (nconc files dirs-files (if loaddefs-file `(,loaddefs-file) nil)))
 	 (byte-compile-verbose nil)
@@ -58,9 +58,9 @@ file."
 	 elc)
     (dolist (file files)
       ;; Determine if the file should be recompiled
+      (setq elc (concat file "c"))
       (if force
 	  (setq should-recompile t)
-	(setq elc (concat file "c"))
 	(setq should-recompile
 	      (or (not (file-exists-p elc))
 		  (and (file-writable-p elc)
