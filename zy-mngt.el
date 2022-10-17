@@ -1,4 +1,4 @@
-;;; zyutils-mngt.el --- Configuration management -*- lexical-binding: t -*-
+;;; zy-mngt.el --- Configuration management -*- lexical-binding: t -*-
 
 
 ;; This file is not part of GNU Emacs
@@ -22,13 +22,17 @@
 ;; Provide functions for loading, compiling and testing the ZyEmacs
 ;; configuration.
 
+;; Symbols in this file are prefixed with "zy-mngt/".
+
 ;;; Code:
+
+(require 'cl-lib)
 
 
 ;; Loaddef collector
 
 ;;;###autoload
-(defun zyutils-collect-loaddefs (file)
+(defun zy-mngt/collect-loaddefs (file)
   "Collect all and load path and loaddefs into a single file FILE."
   (message "Generating single big loaddefs file.")
   ;; Populate `load-path' with borg
@@ -105,7 +109,7 @@
 ;; Recompile the config
 
 ;;;###autoload
-(defun zyutils-recompile-config (&optional force)
+(defun zy-mngt/recompile-config (&optional force)
   "Recompile the ZyEmacs config.
 
 If optional argument FORCE is non-nil, or with prefix argument
@@ -159,11 +163,10 @@ file."
 ;; Launch a new instance of Emacs
 
 ;;;###autoload
-(defun zyutils-test-config (&optional recompile)
+(defun zy-mngt/test-config (&optional recompile)
   "Test the updated config.
 
-Start a new instance of Emacs with \"--debug-init\" argument to
-test it.
+Start a new instance of Emacs with \"--debug-init\".
 
 If RECOMPILE is non-nil, or with prefix argument when called
 interactively, recompile the whole config before starting the new
@@ -173,67 +176,68 @@ instance."
       (progn
 	(save-some-buffers)
 	(when recompile
-	  (zyutils-recompile-config))
+	  (zy-mngt/recompile-config))
 	(eval-and-compile (require 'restart-emacs))
 	(restart-emacs-start-new-emacs '("--debug-init")))
     (error "You have to install Restart-emacs to use this command!")))
 
 
-;; Dedicated mode for displaying benchmark result
+;; Dedicated mode for displaying benchmark result with a tree
 
 (unless (boundp 'zy/bench-timetable)
   (defvar zy/bench-timetable nil))
 
-(define-derived-mode zyutils-benchmark-result-mode
-  tabulated-list-mode "Benchmark Result"
-  "Show times taken to load each features."
-  (setq tabulated-list-format
-	[("Start time (ms)" 20 zyutils--sort-by-since)
-	 ("Feature" 30 t)
-	 ("Time (ms)" 20 zyutils--sort-by-taken)])
-  (setq tabulated-list-entries #'zyutils-benchmark-list-entries)
-  (tabulated-list-init-header))
+(defun zy-mngt/-time-in-millis (time)
+  "Get the string of TIME in milliseconds."
+  (format "%.1f" (* 1000 (float-time time))))
 
-(defun zyutils-get-time-string (time)
-  "Get TIME in string format.
-
-TIME will first be converted to float format, then converted to
-milliseconds, and then formated to a string."
-  (format "%.2f" (* 1000 (float-time time))))
-
-(defun zyutils-benchmark-list-entries ()
-  "Get list entries for `zyutils-mode'."
-  (cl-loop for (since feature taken) in zy/bench-timetable
+(defun zy-mngt/-get-bench-table-entries ()
+  "Get all entries for the benchmark table."
+  (cl-loop for (feature since taken parent) in zy/bench-timetable
 	   with order = 0
 	   do (cl-incf order)
 	   collect (list order
-			 (vector (zyutils-get-time-string since)
-				 (symbol-name feature)
-				 (zyutils-get-time-string taken)))))
+			 (vector
+			  (zy-mngt/-time-in-millis since)
+			  (symbol-name feature)
+			  (zy-mngt/-time-in-millis taken)
+			  (symbol-name parent)))))
 
-(defun zyutils--sort-by-since (entry1 entry2)
-  "Return t if ENTRY1 has a greater SINCE value than ENTRY2."
-  (< (string-to-number (elt (nth 1 entry1) 0))
-     (string-to-number (elt (nth 1 entry2) 0))))
+(defun zy-mngt/-sort-by-since (entry1 entry2)
+  "Compare ENTRY1 and ENTRY2 by SINCE."
+  (< (string-to-number (elt (cadr entry1) 0))
+     (string-to-number (elt (cadr entry2) 0))))
 
-(defun zyutils--sort-by-taken (entry1 entry2)
-  "Return t if ENTRY1 has a greater TAKEN value than ENTRY2."
-  (< (string-to-number (elt (nth 1 entry1) 2))
-     (string-to-number (elt (nth 1 entry2) 2))))
+(defun zy-mngt/-sort-by-taken (entry1 entry2)
+  "Compare ENTRY1 and ENTRY2 by TAKEN."
+  (> (string-to-number (elt (cadr entry1) 2))
+     (string-to-number (elt (cadr entry2) 2))))
+
+(define-derived-mode zy-mngt/bench-table-mode
+  tabulated-list-mode "Bench-Table"
+  "Show times taken to `require' features."
+  (setq tabulated-list-format
+	[("Start time (ms)" 20 zy-mngt/-sort-by-since)
+	 ("Feature" 30 t)
+	 ("Time taken (ms)" 20 zy-mngt/-sort-by-taken)
+	 ("Parent feature" 30 t)])
+  (setq tabulated-list-sort-key (cons "Start time (ms)" nil))
+  (setq tabulated-list-entries 'zy-mngt/-get-bench-table-entries)
+  (tabulated-list-init-header))
 
 
 ;; Command to show benchmark result
 
 ;;;###autoload
-(defun zyutils-show-benchmark-result ()
+(defun zy-mngt/show-benchmark-result ()
   "Show a tabular view of startup benchmark result."
   (interactive)
   (with-current-buffer (get-buffer-create "*Benchmark Result*")
-    (zyutils-benchmark-result-mode)
+    (zy-mngt/bench-table-mode)
     (tabulated-list-revert)
     (display-buffer (current-buffer))))
 
 
-(provide 'zyutils-mngt)
+(provide 'zy-mngt)
 
-;;; zyutils-mngt.el ends here
+;;; zy-mngt.el ends here
