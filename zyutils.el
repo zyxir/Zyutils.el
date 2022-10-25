@@ -24,6 +24,7 @@
 ;;; Code:
 
 (require 'zy-benchvis)
+(require 'zy-fb)
 
 
 (provide 'zyutils)
